@@ -3,8 +3,8 @@ langchain
 javascript
 setuptools
 openai
-chardet
-cchardet
+chardet>=5.0.0
+# cchardet
 chromadb==0.3.29
 tiktoken
 requests
@@ -12,3 +12,4 @@ setuptools
 gymnasium
 psutil
 minecraft_launcher_lib
+
