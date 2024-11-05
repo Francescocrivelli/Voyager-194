@@ -1,0 +1,3 @@
+async function craftStonePickaxe(bot) {
+    // The function crafts a stone pickaxe by first checking for a crafting table in the inventory and crafting one if not available. It then places the crafting table near the bot and proceeds to craft a stone pickaxe using the crafting table, with corresponding chat messages for each action.
+}

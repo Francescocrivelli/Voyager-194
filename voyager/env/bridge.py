@@ -24,7 +24,9 @@ class VoyagerEnv(gym.Env):
         server_port=3000,
         request_timeout=600,
         log_path="./logs",
+        bot_username="bot",
     ):
+        self.bot_username = bot_username  # Add this line
         if not mc_port and not azure_login:
             raise ValueError("Either mc_port or azure_login must be specified")
         if mc_port and azure_login:
@@ -147,6 +149,7 @@ class VoyagerEnv(gym.Env):
             "spread": options.get("spread", False),
             "waitTicks": options.get("wait_ticks", 5),
             "position": options.get("position", None),
+            "username": self.bot_username, #added
         }
 
         self.unpause()
