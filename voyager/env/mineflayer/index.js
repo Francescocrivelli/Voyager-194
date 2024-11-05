@@ -2,7 +2,7 @@ const fs = require("fs");
 const express = require("express");
 const bodyParser = require("body-parser");
 const mineflayer = require("mineflayer");
-
+const { mineflayer: mineflayerViewer } = require('prismarine-viewer')
 const skills = require("./lib/skillLoader");
 const { initCounter, getNextTime } = require("./lib/utils");
 const obs = require("./lib/observation/base");
@@ -106,7 +106,12 @@ app.post("/start", (req, res) => {
         bot.loadPlugin(collectBlock);
         bot.loadPlugin(pvp);
         // bot.loadPlugin(minecraftHawkEye);
-
+        mineflayerViewer(bot, {
+            port: 3007,          // Web viewer port
+            firstPerson: true,   // Enable first person view
+            viewDistance: 6      // View distance in chunks
+        })
+        
         bot.collectBlock.movements.digCost = 0;
         bot.collectBlock.movements.placeCost = 0;
 

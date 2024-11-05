@@ -24,7 +24,7 @@ class VoyagerEnv(gym.Env):
         server_port=3000,
         request_timeout=600,
         log_path="./logs",
-        bot_username="bot",
+        bot_username="bot",  
     ):
         self.bot_username = bot_username  # Add this line
         if not mc_port and not azure_login:
