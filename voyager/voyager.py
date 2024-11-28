@@ -260,7 +260,7 @@ class Voyager:
         if self.resume:
             self.env.reset(
                 options={
-                    "mode": "soft",
+                    "mode": "soft" if not reset_env else "hard",
                     "wait_ticks": self.env_wait_ticks,
                 }
             )
@@ -320,5 +320,3 @@ class Voyager:
             "failed_tasks": self.curriculum_agent.failed_tasks,
             "skills": self.skill_manager.skills,
         }
-    
-    

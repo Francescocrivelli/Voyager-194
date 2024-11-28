@@ -178,7 +178,6 @@ app.post("/start", (req, res) => {
 // Rest of the code remains the same as in original index.js...
 // (Include all the remaining functions and routes from the original file)
 
-// Continuing from previous index.js...
 
 app.post("/step", async (req, res) => {
     let response_sent = false;
