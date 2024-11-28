@@ -144,9 +144,11 @@ class MultiAgentManager:
 
 
 if __name__ == "__main__":
+    import os
+    api_key = os.getenv("OPENAI_API_KEY")
     # Your existing configuration
     MC_PORT = 49581
-    OPENAI_API_KEY = "YOUR KEY"
+    OPENAI_API_KEY = api_key
     NUM_AGENTS = 2
     BASE_SERVER_PORT = 3000
 
