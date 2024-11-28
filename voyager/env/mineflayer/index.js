@@ -16,6 +16,7 @@ const Chests = require("./lib/observation/chests");
 const { plugin: tool } = require("mineflayer-tool");
 
 let bot = null;
+const viewerPorts = new Map();
 
 const app = express();
 
@@ -26,10 +27,15 @@ app.post("/start", (req, res) => {
     if (bot) onDisconnect("Restarting bot");
     bot = null;
     console.log(req.body);
+
+    // Calculate viewer port based on server port
+    const serverPort = parseInt(req.body.server_port);
+    const viewerPort = serverPort + 7; // e.g., 3000 -> 3007, 3001 -> 3008
+    viewerPorts.set(req.body.username, viewerPort);
+
     bot = mineflayer.createBot({
-        host: "localhost", // minecraft server ip
-        port: req.body.port, // minecraft server port
-        // username: "bot",
+        host: "localhost",
+        port: req.body.port,
         username: req.body.username || "bot",
         disableChatSigning: true,
         checkTimeoutInterval: 60 * 60 * 1000,
@@ -89,7 +95,6 @@ app.post("/start", (req, res) => {
             );
         }
 
-        // if iron_pickaxe is in bot's inventory
         if (
             bot.inventory.items().find((item) => item.name === "iron_pickaxe")
         ) {
@@ -100,17 +105,23 @@ app.post("/start", (req, res) => {
         const tool = require("mineflayer-tool").plugin;
         const collectBlock = require("mineflayer-collectblock").plugin;
         const pvp = require("mineflayer-pvp").plugin;
-        // const minecraftHawkEye = require("minecrafthawkeye");
+
         bot.loadPlugin(pathfinder);
         bot.loadPlugin(tool);
         bot.loadPlugin(collectBlock);
         bot.loadPlugin(pvp);
-        // bot.loadPlugin(minecraftHawkEye);
-        mineflayerViewer(bot, {
-            port: 3007,          // Web viewer port
-            firstPerson: true,   // Enable first person view
-            viewDistance: 6      // View distance in chunks
-        })
+
+        // Initialize viewer with dynamic port
+        try {
+            mineflayerViewer(bot, {
+                port: viewerPort,
+                firstPerson: true,
+                viewDistance: 6
+            });
+            console.log(`First person view for ${bot.username} available at port ${viewerPort}`);
+        } catch (err) {
+            console.error(`Failed to start viewer for ${bot.username}:`, err);
+        }
         
         bot.collectBlock.movements.digCost = 0;
         bot.collectBlock.movements.placeCost = 0;
@@ -141,25 +152,38 @@ app.post("/start", (req, res) => {
     });
 
     function onConnectionFailed(e) {
-        console.log(e);
+        console.log(`Connection failed for ${bot?.username || 'unknown bot'}:`, e);
         bot = null;
         res.status(400).json({ error: e });
     }
+
     function onDisconnect(message) {
-        if (bot.viewer) {
-            bot.viewer.close();
+        if (bot) {
+            const username = bot.username;
+            if (bot.viewer) {
+                try {
+                    bot.viewer.close();
+                } catch (err) {
+                    console.error(`Error closing viewer for ${username}:`, err);
+                }
+            }
+            viewerPorts.delete(username);
+            bot.end();
+            console.log(`Bot ${username} disconnected:`, message);
+            bot = null;
         }
-        bot.end();
-        console.log(message);
-        bot = null;
     }
 });
 
+// Rest of the code remains the same as in original index.js...
+// (Include all the remaining functions and routes from the original file)
+
+// Continuing from previous index.js...
+
 app.post("/step", async (req, res) => {
-    // import useful package
     let response_sent = false;
     function otherError(err) {
-        console.log("Uncaught Error");
+        console.log(`Uncaught Error for ${bot?.username || 'unknown'}:`);
         bot.emit("error", handleError(err));
         bot.waitForTicks(bot.waitTicks).then(() => {
             if (!response_sent) {
@@ -173,13 +197,12 @@ app.post("/step", async (req, res) => {
 
     const mcData = require("minecraft-data")(bot.version);
     mcData.itemsByName["leather_cap"] = mcData.itemsByName["leather_helmet"];
-    mcData.itemsByName["leather_tunic"] =
-        mcData.itemsByName["leather_chestplate"];
-    mcData.itemsByName["leather_pants"] =
-        mcData.itemsByName["leather_leggings"];
+    mcData.itemsByName["leather_tunic"] = mcData.itemsByName["leather_chestplate"];
+    mcData.itemsByName["leather_pants"] = mcData.itemsByName["leather_leggings"];
     mcData.itemsByName["leather_boots"] = mcData.itemsByName["leather_boots"];
     mcData.itemsByName["lapis_lazuli_ore"] = mcData.itemsByName["lapis_ore"];
     mcData.blocksByName["lapis_lazuli_ore"] = mcData.blocksByName["lapis_ore"];
+    
     const {
         Movements,
         goals: {
@@ -199,13 +222,6 @@ app.post("/step", async (req, res) => {
             GoalPlaceBlock,
         },
         pathfinder,
-        Move,
-        ComputedPath,
-        PartiallyComputedPath,
-        XZCoordinates,
-        XYZCoordinates,
-        SafeBlock,
-        GoalPlaceBlockOptions,
     } = require("mineflayer-pathfinder");
     const { Vec3 } = require("vec3");
 
@@ -237,27 +253,29 @@ app.post("/step", async (req, res) => {
     let _placeItemFailCount = 0;
     let _smeltItemFailCount = 0;
 
-    // Retrieve array form post bod
     const code = req.body.code;
     const programs = req.body.programs;
     bot.cumulativeObs = [];
+    
     await bot.waitForTicks(bot.waitTicks);
     const r = await evaluateCode(code, programs);
     process.off("uncaughtException", otherError);
+    
     if (r !== "success") {
         bot.emit("error", handleError(r));
     }
+    
     await returnItems();
-    // wait for last message
     await bot.waitForTicks(bot.waitTicks);
+    
     if (!response_sent) {
         response_sent = true;
         res.json(bot.observe());
     }
+    
     bot.removeListener("physicTick", onTick);
 
     async function evaluateCode(code, programs) {
-        // Echo the code produced for players to see it. Don't echo when the bot code is already producing dialog or it will double echo
         try {
             await eval("(async () => {" + programs + "\n" + code + "})()");
             return "success";
@@ -270,31 +288,26 @@ app.post("/step", async (req, res) => {
         const currentPos = bot.entity.position;
         bot.stuckPosList.push(currentPos);
 
-        // Check if the list is full
         if (bot.stuckPosList.length === 5) {
             const oldestPos = bot.stuckPosList[0];
             const posDifference = currentPos.distanceTo(oldestPos);
 
             if (posDifference < posThreshold) {
-                teleportBot(); // execute the function
+                teleportBot();
             }
 
-            // Remove the oldest time from the list
             bot.stuckPosList.shift();
         }
     }
 
     function teleportBot() {
         const blocks = bot.findBlocks({
-            matching: (block) => {
-                return block.type === 0;
-            },
+            matching: (block) => block.type === 0,
             maxDistance: 1,
             count: 27,
         });
 
-        if (blocks) {
-            // console.log(blocks.length);
+        if (blocks && blocks.length) {
             const randomIndex = Math.floor(Math.random() * blocks.length);
             const block = blocks[randomIndex];
             bot.chat(`/tp @s ${block.x} ${block.y} ${block.z}`);
@@ -326,12 +339,10 @@ app.post("/step", async (req, res) => {
             bot.chat("/give @s furnace");
         }
         if (bot.inventoryUsed() >= 32) {
-            // if chest is not in bot's inventory
             if (!bot.inventory.items().find((item) => item.name === "chest")) {
                 bot.chat("/give @s chest");
             }
         }
-        // if iron_pickaxe not in bot's inventory and bot.iron_pickaxe
         if (
             bot.iron_pickaxe &&
             !bot.inventory.items().find((item) => item.name === "iron_pickaxe")
@@ -371,13 +382,8 @@ app.post("/step", async (req, res) => {
         if (f_line && f_line.groups && fs.existsSync(f_line.groups.file)) {
             const { file, line, pos } = f_line.groups;
             const f = fs.readFileSync(file, "utf8").split("\n");
-            // let filename = file.match(/(?<=node_modules\\)(.*)/)[1];
             let source = file + `:${line}\n${f[line - 1].trim()}\n `;
-
-            const code_source =
-                "at " +
-                code.split("\n")[match_line - 1].trim() +
-                " in your code";
+            const code_source = "at " + code.split("\n")[match_line - 1].trim() + " in your code";
             return source + err.message + "\n" + code_source;
         } else if (
             f_line &&
@@ -385,18 +391,11 @@ app.post("/step", async (req, res) => {
             f_line.groups.file.includes("<anonymous>")
         ) {
             const { file, line, pos } = f_line.groups;
-            let source =
-                "Your code" +
-                `:${match_line}\n${code.split("\n")[match_line - 1].trim()}\n `;
+            let source = "Your code" + `:${match_line}\n${code.split("\n")[match_line - 1].trim()}\n `;
             let code_source = "";
             if (line < programs_length) {
-                source =
-                    "In your program code: " +
-                    programs.split("\n")[line - 1].trim() +
-                    "\n";
-                code_source = `at line ${match_line}:${code
-                    .split("\n")
-                    [match_line - 1].trim()} in your code`;
+                source = "In your program code: " + programs.split("\n")[line - 1].trim() + "\n";
+                code_source = `at line ${match_line}:${code.split("\n")[match_line - 1].trim()} in your code`;
             }
             return source + err.message + "\n" + code_source;
         }
@@ -405,10 +404,16 @@ app.post("/step", async (req, res) => {
 });
 
 app.post("/stop", (req, res) => {
-    bot.end();
-    res.json({
-        message: "Bot stopped",
-    });
+    if (bot) {
+        bot.end();
+        res.json({
+            message: `Bot ${bot.username} stopped`,
+        });
+    } else {
+        res.json({
+            message: "No bot to stop",
+        });
+    }
 });
 
 app.post("/pause", (req, res) => {
@@ -422,10 +427,11 @@ app.post("/pause", (req, res) => {
     });
 });
 
-// Server listening to PORT 3000
+
 
 const DEFAULT_PORT = 3000;
 const PORT = process.argv[2] || DEFAULT_PORT;
 app.listen(PORT, () => {
     console.log(`Server started on port ${PORT}`);
 });
+
