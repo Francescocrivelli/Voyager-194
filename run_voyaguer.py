@@ -146,7 +146,7 @@ class MultiAgentManager:
 if __name__ == "__main__":
     # Your existing configuration
     MC_PORT = 49581
-    OPENAI_API_KEY = "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"
+    OPENAI_API_KEY = "YOUR KEY"
     NUM_AGENTS = 2
     BASE_SERVER_PORT = 3000
 
